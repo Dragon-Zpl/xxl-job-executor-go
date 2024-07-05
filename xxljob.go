@@ -20,7 +20,7 @@ type XXLJobConfig struct {
 	Enable                                                         bool
 	ServerAddr, AccessToken, ExecutorIp, ExecutorPort, RegistryKey string
 	Timeout                                                        time.Duration // 任务超时时间
-	logger                                                         xxl.Logger
+	Logger                                                         xxl.Logger
 }
 
 // middlewares处理函数闭包
@@ -28,14 +28,14 @@ func NewXXLJobTiming(cfg XXLJobConfig, middlewares ...xxl.Middleware) *XXLJobTim
 	var (
 		exec xxl.Executor
 	)
-	if cfg.logger == nil {
-		cfg.logger = xxl.NewDefaultLogger()
+	if cfg.Logger == nil {
+		cfg.Logger = xxl.NewDefaultLogger()
 	}
 	if cfg.Enable {
 		options := []xxl.Option{
 			xxl.ServerAddr(cfg.ServerAddr),
 			xxl.AccessToken(cfg.AccessToken),   //请求令牌(默认为空)
-			xxl.SetLogger(cfg.logger),
+			xxl.SetLogger(cfg.Logger),
 		}
 		if cfg.ExecutorPort != "" {
 			options = append(options, xxl.ExecutorPort(cfg.ExecutorPort))
@@ -65,7 +65,7 @@ func NewXXLJobTiming(cfg XXLJobConfig, middlewares ...xxl.Middleware) *XXLJobTim
 		enable:  cfg.Enable,
 		exec:    exec,
 		timeout: cfg.Timeout,
-		log:     cfg.logger,
+		log:     cfg.Logger,
 	}
 }
 
