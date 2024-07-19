@@ -29,6 +29,7 @@ func TestXXLJob(t *testing.T) {
 	logTimeOut := time.Second * 10 // 日志超时时间
 	s.SetLogHandler(timingLogHandler.LogHandlerWithLogPath(logTimeOut))
 	s.Register("", nil) // 自定义任务注册, key为任务唯一标识, cf为任务执行函数
+	s.RegisterdefaultTask(nil) // 注册默认BEAN任务, 当BEAN模式下任务查找不到使用, 用于自定义
 	s.RegsiterScript("", nil) // 自定义脚本注册, key为脚本唯一标识, cf为脚本执行函数, 会覆盖InitScript中提供的默认函数
 	s.Start(context.Background())
 }

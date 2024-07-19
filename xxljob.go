@@ -90,6 +90,7 @@ func (x XXLJobTiming) InitScript(scriptDirPath string) {
 	x.RegsiterScript(xxl.GlueType_GLUE_POWERSHELL, s.PowershellJob())
 }
 
+// 扩展
 func (x *XXLJobTiming) RegisterTask(key string, cf xxl.TaskFunc) error {
 	if !x.enable {
 		x.log.Warn("timing job is disable")
@@ -99,12 +100,23 @@ func (x *XXLJobTiming) RegisterTask(key string, cf xxl.TaskFunc) error {
 	return nil
 }
 
+// 扩展
 func (x *XXLJobTiming) RegsiterScriptTask(key xxl.GlueType, cf xxl.TaskFunc) error {
 	if !x.enable {
 		x.log.Warn("timing job is disable")
 		return nil
 	}
 	x.exec.RegScriptTask(key, cf)
+	return nil
+}
+
+// 默认任务, 当查找不到任务时使用
+func (x *XXLJobTiming) RegisterdefaultTask(cf xxl.TaskFunc) error {
+	if !x.enable {
+		x.log.Warn("timing job is disable")
+		return nil
+	}
+	x.exec.RegisterDefaultTask(cf)
 	return nil
 }
 

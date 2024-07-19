@@ -49,10 +49,10 @@ func main() {
 	s := xxl.NewXXLJobTiming(cfg)
 	// 初始化脚本执行器, 不需要的话可以注释掉
 	s.InitScript(scriptDirPath)
-	logTimeOut := time.Second * 10 // 日志超时时间
-    // 设置日志处理器, 如果提供的与使用场景不一致，请自行实现日志处理器
+	logTimeOut := time.Second * 10 // 日志超时时间, xxl-job-admin只有3s这是一个隐患, 查找日志时需要优化自身的查找效率, 比如减少文件的大小, 使用logrotate等方式
 	s.SetLogHandler(timingLogHandler.LogHandlerWithLogPath(logTimeOut))
-    s.Register("", nil) // 自定义任务注册, key为任务唯一标识, cf为任务执行函数
+	s.Register("", nil) // 自定义任务注册, key为任务唯一标识, cf为任务执行函数
+	s.RegisterdefaultTask(nil) // 注册默认BEAN任务, 当BEAN模式下任务查找不到使用, 用于自定义
 	s.RegsiterScript("", nil) // 自定义脚本注册, key为脚本唯一标识, cf为脚本执行函数, 会覆盖InitScript中提供的默认函数
 	s.Start(context.Background())
 }

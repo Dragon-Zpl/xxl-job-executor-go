@@ -27,6 +27,8 @@ type Executor interface {
 	RunTask(writer http.ResponseWriter, request *http.Request)
 	// RegScriptTask 注册脚本任务
 	RegScriptTask(glueType GlueType, task TaskFunc)
+	// RegisterDefaultTask 注册默认任务, 查询不到任务时候使用
+	RegisterDefaultTask(task TaskFunc)
 	// KillTask 杀死任务
 	KillTask(writer http.ResponseWriter, request *http.Request)
 	// TaskLog 任务日志
@@ -59,6 +61,7 @@ type executor struct {
 	address     string
 	regList     *taskList //注册任务列表
 	runList     *taskList //正在执行任务列表
+	defaultTask *Task  //默认任务
 	mu          sync.RWMutex
 	log         Logger
 	scriptList  *taskList    // 脚本执行任务列表
@@ -135,6 +138,26 @@ func (e *executor) RegScriptTask(glueType GlueType, task TaskFunc) {
 	e.scriptList.Set(glueType.String(), t)
 }
 
+func (e *executor) RegisterDefaultTask(task TaskFunc) {
+	var t = &Task{}
+	t.fn = e.chain(task)
+	e.defaultTask = t
+}
+
+func (e *executor) defaultTaskHandler() *Task {
+	return &Task{
+		Id:    e.defaultTask.Id,
+		Name:  e.defaultTask.Name,
+		Ext:   e.defaultTask.Ext,
+		Param: e.defaultTask.Param,
+		fn: e.defaultTask.fn,
+		Cancel: e.defaultTask.Cancel,
+		StartTime: e.defaultTask.StartTime,
+		EndTime:   e.defaultTask.EndTime,
+		log:       e.defaultTask.log,
+	}
+}
+
 // 运行一个任务
 func (e *executor) runTask(writer http.ResponseWriter, request *http.Request) {
 	e.mu.Lock()
@@ -149,7 +172,7 @@ func (e *executor) runTask(writer http.ResponseWriter, request *http.Request) {
 	}
 	cxt := context.WithValue(context.Background(), LogIDContextKey{}, param.LogID)
 	e.log.WithContext(cxt).Infof("任务参数: %v", param)
-	if param.GlueType == GlueType_GLUE_GO.String() && !e.regList.Exists(param.ExecutorHandler) {
+	if param.GlueType == GlueType_GLUE_GO.String() && !e.regList.Exists(param.ExecutorHandler) && e.defaultTask == nil {
 		_, _ = writer.Write(returnCall(param, FailureCode, "Task not registered"))
 		e.log.WithContext(cxt).Error("任务[" + Int64ToStr(param.JobID) + "]没有注册:" + param.ExecutorHandler)
 		return
@@ -172,8 +195,12 @@ func (e *executor) runTask(writer http.ResponseWriter, request *http.Request) {
 
 	var task *Task
 	if param.GlueType == GlueType_GLUE_GO.String() {
-		task = e.regList.Get(param.ExecutorHandler)
-		task.Name = param.ExecutorHandler
+		if !e.regList.Exists(param.ExecutorHandler) && e.defaultTask == nil {
+			task = e.regList.Get(param.ExecutorHandler)
+			task.Name = param.ExecutorHandler
+		} else {
+			task = e.defaultTask
+		}
 	} else {
 		if !e.scriptList.Exists(param.GlueType) {
 			e.log.WithContext(cxt).Error("任务[" + Int64ToStr(param.JobID) + "]没有注册GlueType:" + param.GlueType)
@@ -194,7 +221,7 @@ func (e *executor) runTask(writer http.ResponseWriter, request *http.Request) {
 
 	e.runList.Set(Int64ToStr(task.Id), task)
 	go task.Run(func(code int64, msg string) {
-		e.callback(task, code, msg)
+		e.callback(cxt, task, code, msg)
 	})
 	e.log.WithContext(cxt).Info("任务[" + Int64ToStr(param.JobID) + "]开始执行:" + param.ExecutorHandler)
 	_, _ = writer.Write(returnGeneral())
@@ -338,11 +365,11 @@ func (e *executor) registryRemove() {
 }
 
 // 回调任务列表
-func (e *executor) callback(task *Task, code int64, msg string) {
+func (e *executor) callback(ctx context.Context, task *Task, code int64, msg string) {
 	e.runList.Del(Int64ToStr(task.Id))
 	res, err := e.post("/api/callback", string(returnCall(task.Param, code, msg)))
 	if err != nil {
-		e.log.Error("callback err : ", err.Error())
+		e.log.WithContext(ctx).Error("callback err : ", err.Error())
 		return
 	}
 	defer res.Body.Close()
@@ -351,7 +378,7 @@ func (e *executor) callback(task *Task, code int64, msg string) {
 		e.log.Error("callback ReadAll err : ", err.Error())
 		return
 	}
-	e.log.Info("任务回调成功:" + string(body))
+	e.log.WithContext(ctx).Info("任务回调成功:" + string(body))
 }
 
 // post
